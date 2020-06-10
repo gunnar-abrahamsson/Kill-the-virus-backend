@@ -1,0 +1,22 @@
+{
+  "name": "back-kill-the-virus",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/server.js",
+    "dev": "cross-env DEBUG=kill-the-virus:* node_modules/.bin/nodemon ./bin/server.js",
+    "debug": "cross-env DEBUG=kill-the-virus:* node_modules/.bin/nodemon --inspect ./bin/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "debug": "~2.6.9",
+    "dotenv": "^8.2.0",
+    "express": "~4.16.1",
+    "morgan": "~1.9.1",
+    "nodemon": "^2.0.4",
+    "socket.io": "^2.3.0"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.2"
+  }
+}
