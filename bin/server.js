@@ -35,6 +35,37 @@ const createGameRoom = (player1, player2, room) => {
     });
 
     io.to(room).emit('joined game room', room)
+    startGame(room);
+}
+
+const startGame = (room) => {
+    io.to(room).emit('gameStarting', { gameStartingIn: 5 });
+    spawnVirus(room);
+}
+
+const getCordinates = () => {
+    //set x y cords with safty space
+    const x = Math.floor(Math.random() * 780) + 10
+    const y = Math.floor(Math.random() * 580) + 10
+    return{ x, y }
+}
+
+const spawnVirus = (room) => {
+    const cordinates = getCordinates();
+    io.to(room).emit('spawn virus', cordinates);
+
+}
+
+const getPlayersGameRoom = (player) => {
+    const gameRoom = gameRooms.find(gameRoom => player === gameRoom.player1 || player === gameRoom.player2)
+    return gameRoom.room
+}   
+const calculateResoult = (player1, player2) => {
+
+}
+
+const handleReactionTime = (player, reactionTime) => {
+
 }
 
 const usersInLoby = [];
@@ -65,8 +96,8 @@ io.on('connection', (socket) => {
     
     socket.on('join', (data) => {
         debug(data);
-        //handleGameRoom(data.room);
-        socket.to(data.room).broadcast.emit('player joined', data.userName)
+        getPlayersGameRoom(socket)
+        socket.to(getPlayersGameRoom(socket)).broadcast.emit('player joined', data.userName)
     })
 });
 
