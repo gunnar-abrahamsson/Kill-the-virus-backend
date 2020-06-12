@@ -25,16 +25,53 @@ app.set('port', port);
 const server = http.createServer(app);
 const io = SocketIO(server);
 
+const createGameRoom = (player1, player2, room) => {
+    player1.join(room)
+    player2.join(room)
+    gameRooms.push({
+        player1,
+        player2,
+        room
+    });
+
+    io.to(room).emit('joined game room', room)
+}
+
+const usersInLoby = [];
+const gameRooms = [];
 io.on('connection', (socket) => {
-	socket.username = socket.handshake.query.username || 'Anonymus panda'
-	debug(`${socket.username} connected`)
-	socket.emit("connected", {username: socket.username});
+	socket.userName = socket.handshake.query.userName || 'Anonymus panda'
+	debug(`${socket.userName} connected`)
+	socket.emit("connected", {userName: socket.userName, room: '/'});
+
+	//check if there is atleast one user in loby
+	if(usersInLoby.length) {
+		//if there is users in loby, create game room and make them join
+        //remove user in loby and make user join game room
+        const player2 = usersInLoby.shift()
+        createGameRoom(socket, player2, socket.id)
+
+        io.to(socket.id).on('join', (data) => {
+            debug('some one joined')
+        })
+	} else {
+		usersInLoby.push(socket);
+	}
 	
 	socket.on('disconnect', () => {
-		debug(`${socket.username} disconnected`)
-		socket.emit("disconnected", {username: socket.username});
-	})
+		debug(`${socket.userName} disconnected`)
+		socket.emit("disconnected", {userName: socket.userName});
+    });
+    
+    socket.on('join', (data) => {
+        debug(data);
+        //handleGameRoom(data.room);
+        socket.to(data.room).broadcast.emit('player joined', data.userName)
+    })
 });
+
+
+
 
 /**
  * Listen on provided port, on all network interfaces.
