@@ -49,7 +49,7 @@ const createGameRoom = (player1, player2, room) => {
 }
 
 const startNextRound = (room) => {
-    if(room.round < 10) {
+    if(room.round < 2) {
         spawnVirus(room.room);
     } else {
         endGame(room)
@@ -65,24 +65,37 @@ const endGame = (room) => {
 const sendResoultToPlayers = (room) => {
     // get scores
     const scoresArray = room.scores.map(scoreObj => scoreObj.wins)
+    //check if draw
+    if(scoresArray[0] === scoresArray[1]) {
+        io.to(room.room).emit('game over', {
+            player: scoresArray[0],
+            opponent: scoresArray[0],
+            resoult: 'draw'
+        })
+        return;
+    }
+    // if not a draw find winner and loser
     // get the fastest reaction time
     const winnerScore = Math.max(...scoresArray);
     const winnerObj = room.scores.find(scoreObj => scoreObj.wins === winnerScore);
     const loserObj = room.scores.find(scoreObj => scoreObj.wins !== winnerScore);
 
     //send result to winner
-    io.to(winnerObj.player.id).emit('Win', {
+    io.to(winnerObj.player.id).emit('game over', {
         player: winnerObj.wins,
-        opponent: loserObj.wins
+        opponent: loserObj.wins,
+        resoult: 'win'
     })
     //send result to loser
-    io.to(loserObj.player.id).emit('lose', {
+    io.to(loserObj.player.id).emit('game over', {
         player: loserObj.wins,
-        opponent: winnerObj.wins
+        opponent: winnerObj.wins,
+        resoult: 'lose'
     })
 }
 const removeGameRoom = (room) => {
-    gameRooms = gameRooms.filter(roomInArray => roomInArray != room)
+    const filteredGameRooms = gameRooms.filter(roomInArray => roomInArray != room);
+    gameRooms = [...filteredGameRooms];
 }
 const getCordinates = () => {
     //set x y cords with safty space
@@ -176,7 +189,7 @@ const handleLoby = (socket) => {
 }
 
 const usersInLoby = [];
-const gameRooms = [];
+let gameRooms = [];
 io.on('connection', (socket) => {
     socket.userName = 'Anonymus panda'
     //Set username and plase user in loby or match with another player
