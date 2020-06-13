@@ -31,23 +31,26 @@ const io = SocketIO(server);
 const createGameRoom = (player1, player2, room) => {
     player1.join(room)
     player2.join(room)
-    player1.wins = 0;
-    player2.wins = 0;
     gameRooms.push({
         player1,
         player2,
+        scores: [
+            {player: player1, wins: 0},
+            {player: player2, wins: 0},
+        ],
         room,
         round: 0,
         reactionTimes: [],
     });
 
     io.to(room).emit('joined game room', room)
-    startNextRound(room);
+    const roomObj = getPlayersGameRoom(player1)
+    startNextRound(roomObj);
 }
 
 const startNextRound = (room) => {
     if(room.round < 10) {
-        spawnVirus(room);
+        spawnVirus(room.room);
     } else {
         endGame(room)
     }
@@ -55,6 +58,25 @@ const startNextRound = (room) => {
 
 const endGame = (room) => {
     debug('Game done!')
+    io.to(room.romm).emit('Game Over', true);
+
+    // get scores
+    const scoresArray = room.scores.map(scoreObj => scoreObj.wins)
+    // get the fastest reaction time
+    const winnerScore = Math.max(...scoresArray);
+    const winnerObj = room.scores.find(scoreObj => scoreObj.wins === winnerScore);
+    const loserObj = room.scores.find(scoreObj => scoreObj.wins !== winnerScore);
+
+    //send result to winner
+    io.to(winnerObj.player.id).emit('Win', {
+        player: winnerObj.wins,
+        opponent: loserObj.wins
+    })
+    //send result to loser
+    io.to(loserObj.player.id).emit('lose', {
+        player: loserObj.wins,
+        opponent: winnerObj.wins
+    })
 }
 
 const getCordinates = () => {
@@ -74,7 +96,31 @@ const spawnVirus = (room) => {
 const getPlayersGameRoom = (player) => {
     const gameRoom = gameRooms.find(gameRoom => player === gameRoom.player1 || player === gameRoom.player2)
     return gameRoom
-}   
+}
+
+const handleScore = (winner, loser, room) => {
+    //updateScores
+
+    //find players score that we want to update
+    const winnersScore = room.scores.find(score => score.player === winner.player)
+    const losersScore = room.scores.find(score => score.player === loser.player)
+    // save resoult to the game room
+    winnersScore.wins++
+    // increase the round by one
+    room.round++
+    // send resoult to each player
+    io.to(winner.player.id).emit('update score', {
+        player: winnersScore.wins,
+        opponent: losersScore.wins,
+        round: room.round
+    })
+    io.to(loser.player.id).emit('update score', {
+        player: losersScore.wins,
+        opponent: winnersScore.wins,
+        round: room.round
+    })
+}
+
 const calculateResoult = (room) => {
     // get reaction times
     const times = room.reactionTimes.map(obj => obj.reactionTime)
@@ -82,21 +128,12 @@ const calculateResoult = (room) => {
     const fastestReaction = Math.min(...times)
     // find the reactionTime object with coresponding reation time
     const fastSocket = room.reactionTimes.find(reactionTimeObj => reactionTimeObj.reactionTime === fastestReaction);
-    const slowSocket = room.reactionTimes.find(reactionTimeObj => reactionTimeObj.reactionTime === fastestReaction);
+    const slowSocket = room.reactionTimes.find(reactionTimeObj => reactionTimeObj.reactionTime !== fastestReaction);
 
-    // save resoult to the game room
-    fastSocket.wins++
-    // increase the round by one
-    room.round++
-    // send resoult to each player
-    io.to(fastSocket.id).emit('update score', {
-        player: fastSocket.wins,
-        oponent: slowSocket.wins
-    })
-    io.to(slowSocket.id).emit('update score', {
-        player: slowSocket.wins,
-        oponent: fastSocket.wins
-    })
+    handleScore(fastSocket, slowSocket, room);
+
+    //reset reaction times efore starting new round
+    room.reactionTimes = [];
 
     //play next round
     startNextRound(room);
@@ -115,8 +152,22 @@ const handleReactionTime = (player, reactionTime) => {
     if(room.reactionTimes.length === 2) {
         calculateResoult(room);
     }
+}
 
-    debug('reactionTimes', room.reactionTimes);
+const handleLoby = (socket) => {
+    //check if there is atleast one user in loby
+    if(usersInLoby.length) {
+        //if there is users in loby, create game room and make them join
+        //remove user in loby and make user join game room
+        const player2 = usersInLoby.shift()
+        createGameRoom(socket, player2, socket.id)
+
+        io.to(socket.id).on('join', (data) => {
+            debug('some one joined')
+        })
+    } else {
+        usersInLoby.push(socket);
+    }
 }
 
 const usersInLoby = [];
@@ -128,19 +179,8 @@ io.on('connection', (socket) => {
         socket.userName = userName
         debug(`${socket.userName} connected`)
         socket.emit("connected", {userName: userName, room: '/'});
-        //check if there is atleast one user in loby
-        if(usersInLoby.length) {
-            //if there is users in loby, create game room and make them join
-            //remove user in loby and make user join game room
-            const player2 = usersInLoby.shift()
-            createGameRoom(socket, player2, socket.id)
-    
-            io.to(socket.id).on('join', (data) => {
-                debug('some one joined')
-            })
-        } else {
-            usersInLoby.push(socket);
-        }
+        
+        handleLoby(socket);
     })
 	socket.on('disconnect', () => {
 		debug(`${socket.userName} disconnected`)
@@ -154,6 +194,10 @@ io.on('connection', (socket) => {
 
     socket.on('submit reactionTime', (reactionTime) => {
         handleReactionTime(socket, reactionTime);
+    })
+
+    socket.on('play again', () => {
+        handleLoby(socket);
     })
 });
 
