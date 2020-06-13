@@ -10,6 +10,7 @@ const app = require('../app');
 const debug = require('debug')('kill-the-virus:server');
 const http = require('http');
 const SocketIO = require('socket.io');
+const { set } = require('../app');
 
 /**
  * Get port from environment and store in Express.
@@ -24,6 +25,8 @@ app.set('port', port);
 
 const server = http.createServer(app);
 const io = SocketIO(server);
+//set origins so cors stops messing with me ;(
+//io.origins('*:*');
 
 const createGameRoom = (player1, player2, room) => {
     player1.join(room)
@@ -31,7 +34,9 @@ const createGameRoom = (player1, player2, room) => {
     gameRooms.push({
         player1,
         player2,
-        room
+        room,
+        round: 0,
+        reactionTimes: [],
     });
 
     io.to(room).emit('joined game room', room)
@@ -39,7 +44,6 @@ const createGameRoom = (player1, player2, room) => {
 }
 
 const startGame = (room) => {
-    io.to(room).emit('gameStarting', { gameStartingIn: 5 });
     spawnVirus(room);
 }
 
@@ -47,48 +51,59 @@ const getCordinates = () => {
     //set x y cords with safty space
     const x = Math.floor(Math.random() * 780) + 10
     const y = Math.floor(Math.random() * 580) + 10
-    return{ x, y }
+    const delay = Math.floor(Math.random() * 5)
+    return{ x, y, delay }
 }
 
 const spawnVirus = (room) => {
     const cordinates = getCordinates();
     io.to(room).emit('spawn virus', cordinates);
-
+    
 }
 
 const getPlayersGameRoom = (player) => {
     const gameRoom = gameRooms.find(gameRoom => player === gameRoom.player1 || player === gameRoom.player2)
-    return gameRoom.room
+    return gameRoom
 }   
 const calculateResoult = (player1, player2) => {
-
+    
 }
 
 const handleReactionTime = (player, reactionTime) => {
+    const room = getPlayersGameRoom(player);
+    if(!room) return;
+    room.reactionTimes = [...room.reactionTimes, {
+        player,
+        reactionTime
+    }]
+    io.to(room.room).emit('opponents reactionTime', reactionTime);
 
+    debug('reactionTimes', room.reactionTimes);
 }
 
 const usersInLoby = [];
 const gameRooms = [];
 io.on('connection', (socket) => {
-	socket.userName = socket.handshake.query.userName || 'Anonymus panda'
-	debug(`${socket.userName} connected`)
-	socket.emit("connected", {userName: socket.userName, room: '/'});
-
-	//check if there is atleast one user in loby
-	if(usersInLoby.length) {
-		//if there is users in loby, create game room and make them join
-        //remove user in loby and make user join game room
-        const player2 = usersInLoby.shift()
-        createGameRoom(socket, player2, socket.id)
-
-        io.to(socket.id).on('join', (data) => {
-            debug('some one joined')
-        })
-	} else {
-		usersInLoby.push(socket);
-	}
-	
+    socket.userName = 'Anonymus panda'
+    //Set username and plase user in loby or match with another player
+    socket.on('submit userName', userName => {
+        socket.userName = userName
+        debug(`${socket.userName} connected`)
+        socket.emit("connected", {userName: userName, room: '/'});
+        //check if there is atleast one user in loby
+        if(usersInLoby.length) {
+            //if there is users in loby, create game room and make them join
+            //remove user in loby and make user join game room
+            const player2 = usersInLoby.shift()
+            createGameRoom(socket, player2, socket.id)
+    
+            io.to(socket.id).on('join', (data) => {
+                debug('some one joined')
+            })
+        } else {
+            usersInLoby.push(socket);
+        }
+    })
 	socket.on('disconnect', () => {
 		debug(`${socket.userName} disconnected`)
 		socket.emit("disconnected", {userName: socket.userName});
@@ -96,8 +111,11 @@ io.on('connection', (socket) => {
     
     socket.on('join', (data) => {
         debug(data);
-        getPlayersGameRoom(socket)
-        socket.to(getPlayersGameRoom(socket)).broadcast.emit('player joined', data.userName)
+        socket.to(getPlayersGameRoom(socket).room).broadcast.emit('player joined', data.userName)
+    })
+
+    socket.on('submit reactionTime', (reactionTime) => {
+        handleReactionTime(socket, reactionTime);
     })
 });
 
