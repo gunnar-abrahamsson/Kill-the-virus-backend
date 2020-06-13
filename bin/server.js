@@ -57,9 +57,12 @@ const startNextRound = (room) => {
 }
 
 const endGame = (room) => {
+    sendResoultToPlayers(room)
+    removeGameRoom(room);
     debug('Game done!')
-    io.to(room.romm).emit('Game Over', true);
+}
 
+const sendResoultToPlayers = (room) => {
     // get scores
     const scoresArray = room.scores.map(scoreObj => scoreObj.wins)
     // get the fastest reaction time
@@ -77,9 +80,7 @@ const endGame = (room) => {
         player: loserObj.wins,
         opponent: winnerObj.wins
     })
-    removeGameRoom(room);
 }
-
 const removeGameRoom = (room) => {
     gameRooms = gameRooms.filter(roomInArray => roomInArray != room)
 }
