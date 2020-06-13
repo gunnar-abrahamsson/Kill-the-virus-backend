@@ -77,8 +77,12 @@ const endGame = (room) => {
         player: loserObj.wins,
         opponent: winnerObj.wins
     })
+    removeGameRoom(room);
 }
 
+const removeGameRoom = (room) => {
+    gameRooms = gameRooms.filter(roomInArray => roomInArray != room)
+}
 const getCordinates = () => {
     //set x y cords with safty space
     const x = Math.floor(Math.random() * 780) + 10
