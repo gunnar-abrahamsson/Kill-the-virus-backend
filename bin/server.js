@@ -31,6 +31,8 @@ const io = SocketIO(server);
 const createGameRoom = (player1, player2, room) => {
     player1.join(room)
     player2.join(room)
+    player1.wins = 0;
+    player2.wins = 0;
     gameRooms.push({
         player1,
         player2,
@@ -40,11 +42,19 @@ const createGameRoom = (player1, player2, room) => {
     });
 
     io.to(room).emit('joined game room', room)
-    startGame(room);
+    startNextRound(room);
 }
 
-const startGame = (room) => {
-    spawnVirus(room);
+const startNextRound = (room) => {
+    if(room.round < 10) {
+        spawnVirus(room);
+    } else {
+        endGame(room)
+    }
+}
+
+const endGame = (room) => {
+    debug('Game done!')
 }
 
 const getCordinates = () => {
@@ -65,8 +75,32 @@ const getPlayersGameRoom = (player) => {
     const gameRoom = gameRooms.find(gameRoom => player === gameRoom.player1 || player === gameRoom.player2)
     return gameRoom
 }   
-const calculateResoult = (player1, player2) => {
-    
+const calculateResoult = (room) => {
+    // get reaction times
+    const times = room.reactionTimes.map(obj => obj.reactionTime)
+    // get the fastest reaction time
+    const fastestReaction = Math.min(...times)
+    // find the reactionTime object with coresponding reation time
+    const fastSocket = room.reactionTimes.find(reactionTimeObj => reactionTimeObj.reactionTime === fastestReaction);
+    const slowSocket = room.reactionTimes.find(reactionTimeObj => reactionTimeObj.reactionTime === fastestReaction);
+
+    // save resoult to the game room
+    fastSocket.wins++
+    // increase the round by one
+    room.round++
+    // send resoult to each player
+    io.to(fastSocket.id).emit('update score', {
+        player: fastSocket.wins,
+        oponent: slowSocket.wins
+    })
+    io.to(slowSocket.id).emit('update score', {
+        player: slowSocket.wins,
+        oponent: fastSocket.wins
+    })
+
+    //play next round
+    startNextRound(room);
+
 }
 
 const handleReactionTime = (player, reactionTime) => {
@@ -76,7 +110,11 @@ const handleReactionTime = (player, reactionTime) => {
         player,
         reactionTime
     }]
-    io.to(room.room).emit('opponents reactionTime', reactionTime);
+    player.to(room.room).broadcast.emit('opponents reactionTime', reactionTime);
+
+    if(room.reactionTimes.length === 2) {
+        calculateResoult(room);
+    }
 
     debug('reactionTimes', room.reactionTimes);
 }
