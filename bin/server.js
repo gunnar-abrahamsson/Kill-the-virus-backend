@@ -10,7 +10,6 @@ const app = require('../app');
 const debug = require('debug')('kill-the-virus:server');
 const http = require('http');
 const SocketIO = require('socket.io');
-const { set } = require('../app');
 
 /**
  * Get port from environment and store in Express.
@@ -49,7 +48,7 @@ const createGameRoom = (player1, player2, room) => {
 }
 
 const startNextRound = (room) => {
-    if(room.round < 2) {
+    if(room.round < 3) {
         spawnVirus(room.room);
     } else {
         endGame(room)
@@ -81,13 +80,13 @@ const sendResoultToPlayers = (room) => {
     const loserObj = room.scores.find(scoreObj => scoreObj.wins !== winnerScore);
 
     //send result to winner
-    io.to(winnerObj.player.id).emit('game over', {
+    winnerObj.player.emit('game over', {
         player: winnerObj.wins,
         opponent: loserObj.wins,
         resoult: 'win'
     })
     //send result to loser
-    io.to(loserObj.player.id).emit('game over', {
+    loserObj.player.emit('game over', {
         player: loserObj.wins,
         opponent: winnerObj.wins,
         resoult: 'lose'
@@ -99,10 +98,11 @@ const removeGameRoom = (room) => {
 }
 const getCordinates = () => {
     //set x y cords with safty space
-    const x = Math.floor(Math.random() * 780) + 10
-    const y = Math.floor(Math.random() * 580) + 10
+    const x = Math.floor(Math.random() * 740) + 30
+    const y = Math.floor(Math.random() * 540) + 30
     const delay = Math.floor(Math.random() * 5)
-    return{ x, y, delay }
+    const size = Math.floor(Math.random() * 70) + 20
+    return{ x, y, delay, size }
 }
 
 const spawnVirus = (room) => {
@@ -127,12 +127,12 @@ const handleScore = (winner, loser, room) => {
     // increase the round by one
     room.round++
     // send resoult to each player
-    io.to(winner.player.id).emit('update score', {
+    winner.player.emit('update score', {
         player: winnersScore.wins,
         opponent: losersScore.wins,
         round: room.round
     })
-    io.to(loser.player.id).emit('update score', {
+    loser.player.emit('update score', {
         player: losersScore.wins,
         opponent: winnersScore.wins,
         round: room.round
@@ -179,10 +179,6 @@ const handleLoby = (socket) => {
         //remove user in loby and make user join game room
         const player2 = usersInLoby.shift()
         createGameRoom(socket, player2, socket.id)
-
-        io.to(socket.id).on('join', (data) => {
-            debug('some one joined')
-        })
     } else {
         usersInLoby.push(socket);
     }
@@ -207,7 +203,7 @@ io.on('connection', (socket) => {
     
     socket.on('join', (data) => {
         debug(data);
-        socket.to(getPlayersGameRoom(socket).room).broadcast.emit('player joined', data.userName)
+        socket.to(data.room).broadcast.emit('player joined', data.userName)
     })
 
     socket.on('submit reactionTime', (reactionTime) => {
