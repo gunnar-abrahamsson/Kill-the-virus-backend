@@ -83,13 +83,15 @@ const sendResoultToPlayers = (room) => {
     winnerObj.player.emit('game over', {
         player: winnerObj.wins,
         opponent: loserObj.wins,
-        resoult: 'win'
+        resoult: 'win',
+        dc: false,
     })
     //send result to loser
     loserObj.player.emit('game over', {
         player: loserObj.wins,
         opponent: winnerObj.wins,
-        resoult: 'lose'
+        resoult: 'lose',
+        dc: false,
     })
 }
 const removeGameRoom = (room) => {
@@ -184,7 +186,33 @@ const handleLoby = (socket) => {
     }
 }
 
-const usersInLoby = [];
+const handleDisconnect = (socket) => {
+    //check if user is in a loby
+    const isInLoby = usersInLoby.find(user => user === socket);
+    //filter user from loby
+    if(isInLoby) {
+        const filteredLoby = usersInLoby.filter(user => user !== socket);
+        usersInLoby = filteredLoby;
+        return;
+    }
+    //if user is not in a loby check if user is in a game
+    const room = getPlayersGameRoom(socket)
+    if(room) {
+        //if user is in a game send win to the player who didn't disconnect
+        const dcPlayerScore = room.scores.find(score => score.player === socket)
+        const winnerPlayerScore = room.scores.find(score => score.player !== socket)
+        socket.to(room.room).broadcast.emit('game over', {
+            player: winnerPlayerScore.wins,
+            opponent: dcPlayerScore.wins,
+            resoult: 'win',
+            dc: true
+        })
+        //remove game room
+        removeGameRoom(room);
+    }
+}
+
+let usersInLoby = [];
 let gameRooms = [];
 io.on('connection', (socket) => {
     socket.userName = 'Anonymus panda'
@@ -197,6 +225,7 @@ io.on('connection', (socket) => {
         handleLoby(socket);
     })
 	socket.on('disconnect', () => {
+        handleDisconnect(socket)
 		debug(`${socket.userName} disconnected`)
 		socket.emit("disconnected", {userName: socket.userName});
     });
