@@ -34,7 +34,7 @@ const createGameRoom = (player1, player2, room) => {
 }
 
 const startNextRound = (room) => {
-	if(room.round < 2) {
+	if(room.round < 10) {
 		spawnVirus(room.room);
 	} else {
 		endGame(room)
