@@ -48,7 +48,7 @@ const createGameRoom = (player1, player2, room) => {
 }
 
 const startNextRound = (room) => {
-    if(room.round < 3) {
+    if(room.round < 10) {
         spawnVirus(room.room);
     } else {
         endGame(room)
@@ -100,7 +100,7 @@ const removeGameRoom = (room) => {
 }
 const getCordinates = () => {
     //set x y cords with safty space
-    const x = Math.floor(Math.random() * 740) + 30
+    const x = Math.floor(Math.random() * 900) + 30
     const y = Math.floor(Math.random() * 540) + 30
     const delay = Math.floor(Math.random() * 5)
     const size = Math.floor(Math.random() * 70) + 20
@@ -220,8 +220,6 @@ io.on('connection', (socket) => {
     socket.on('submit userName', userName => {
         socket.userName = userName
         debug(`${socket.userName} connected`)
-        socket.emit("connected", {userName: userName, room: '/'});
-        
         handleLoby(socket);
     })
 	socket.on('disconnect', () => {
